@@ -12,7 +12,8 @@
    [rumext.alpha :as mf]
    [cuerdas.core :as str]
    [app.util.object :as obj]
-   [app.main.ui.context :as muc]))
+   [app.main.ui.context :as muc]
+   [app.util.svg :as usvg]))
 
 (defn- stroke-type->dasharray
   [style]
@@ -62,12 +63,23 @@
                          :strokeDasharray (stroke-type->dasharray stroke-style)}))))
   attrs)
 
+
 (defn extract-style-attrs
   ([shape]
    (let [render-id (mf/use-ctx muc/render-ctx)
+         svg-defs (:svg-defs shape {})
+         replace-id (fn [id]
+                      (if (contains? svg-defs id)
+                        (str render-id "-" id)
+                        id))
+         svg-attrs (-> (:svg-attrs shape {})
+                       (usvg/update-attr-ids replace-id)
+                       (usvg/clean-attrs))
          styles (-> (obj/new)
+                    (obj/merge! (clj->js (:style svg-attrs {})))
                     (add-fill shape render-id)
                     (add-stroke shape render-id))]
      (-> (obj/new)
+         (obj/merge! (-> svg-attrs (dissoc :style :transform) (clj->js)))
          (add-border-radius shape)
          (obj/set! "style" styles)))))

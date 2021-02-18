@@ -107,18 +107,36 @@
 
         (add-style-attributes data))))
 
+(defn create-group [name frame-id svg-data element-data]
+  (let [{:keys [x y width height]} svg-data]
+    (-> {:id (uuid/next)
+         :type :group
+         :name name
+         :frame-id frame-id
+         :x x
+         :y y
+         :width width
+         :height height}
+        (gsh/setup-selrect))))
+
 (defn parse-svg-element [frame-id svg-data element-data unames]
-  (let [{:keys [tag]} element-data
-        name (dwc/generate-unique-name unames (str "svg-" (tag-name tag)))]
+  (let [{:keys [tag attrs]} element-data
+        name (dwc/generate-unique-name unames (str "svg-" (tag-name tag)))
+        att-refs (usvg/find-attr-references attrs)
+        references (usvg/find-def-references (:defs svg-data) att-refs)]
     
-    (case tag
-      ;; :rect (parse-rect data)
-      ;; :path (parse-path name frame-id data)
-      (create-raw-svg name frame-id svg-data element-data))))
+    (-> (case tag
+          :g (create-group name frame-id svg-data element-data)
+          ;; :rect (parse-rect data)
+          ;; :path (parse-path name frame-id data)
+          (create-raw-svg name frame-id svg-data element-data))
+
+        (assoc :svg-defs (select-keys (:defs svg-data) references))
+        (assoc :svg-attrs attrs))))
 
 (defn add-svg-child-changes [page-id objects selected frame-id parent-id svg-data ids-mappings result [index data]]
   (let [[unames [rchs uchs]] result
-        data (update data :attrs usvg/replace-attrs-ids ids-mappings)
+        ;; data (update data :attrs usvg/replace-attrs-ids ids-mappings)
         shape (parse-svg-element frame-id svg-data data  unames)
         shape-id (:id shape)
         [rch1 uch1] (dwc/add-shape-changes page-id objects selected shape)
@@ -163,6 +181,9 @@
                                 :width width
                                 :height height
                                 :name svg-name))
+
+            [def-nodes svg-data] (usvg/extract-defs svg-data)
+            svg-data (assoc svg-data :defs def-nodes)
 
             root-shape (create-svg-root frame-id svg-data)
             root-id (:id root-shape)

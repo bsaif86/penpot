@@ -16,7 +16,31 @@
    [app.main.ui.shapes.gradients :as grad]
    [app.util.object :as obj]
    [cuerdas.core :as str]
-   [rumext.alpha :as mf]))
+   [rumext.alpha :as mf]
+   [app.util.svg :as usvg]
+   ))
+
+(mf/defc svg-node [{:keys [node replace-id]}]
+  (cond
+    (string? node) node
+
+    :else
+    (let [{:keys [tag attrs content]} node
+          attrs (-> attrs
+                    (usvg/update-attr-ids replace-id)
+                    (usvg/clean-attrs))]
+      ;; TODO: Clean attrs so they have react format
+      [:> (name tag) (clj->js attrs)
+       (for [node content] [:& svg-node {:node node
+                                         :replace-id replace-id}])])))
+
+(mf/defc svg-defs [{:keys [shape render-id]}]
+  (when-let [svg-defs (:svg-defs shape)]
+    (let [replace-id (fn [id] (if (contains? svg-defs id)
+                                (str render-id "-" id)
+                                id))] (for [svg-def (vals svg-defs)]
+              [:& svg-node {:node svg-def
+                            :replace-id replace-id}]))))
 
 (mf/defc shape-container
   {::mf/wrap-props false}
@@ -48,6 +72,7 @@
     [:& (mf/provider muc/render-ctx) {:value render-id}
      [:> wrapper-tag group-props
       [:defs
+       [:& svg-defs        {:shape shape :render-id render-id}]
        [:& filters/filters {:shape shape :filter-id filter-id}]
        [:& grad/gradient   {:shape shape :attr :fill-color-gradient}]
        [:& grad/gradient   {:shape shape :attr :stroke-color-gradient}]]
